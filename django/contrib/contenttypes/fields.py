@@ -171,6 +171,7 @@ class GenericForeignKey(FieldCacheMixin):
             # This should never happen. I love comments like this, don't you?
             raise Exception("Impossible arguments to GFK.get_content_type!")
 
+
     def get_prefetch_queryset(self, instances, queryset=None):
         if queryset is not None:
             raise ValueError("Custom queryset can't be used for this lookup.")
