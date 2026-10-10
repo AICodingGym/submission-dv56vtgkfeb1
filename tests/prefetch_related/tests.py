@@ -6,7 +6,7 @@ from django.db import connection
 from django.db.models import Prefetch, QuerySet, prefetch_related_objects
 from django.db.models.query import get_prefetcher
 from django.db.models.sql import Query
-from django.test import TestCase, override_settings
+from django.test import TestCase, skipUnlessDBFeature, override_settings
 from django.test.utils import CaptureQueriesContext, ignore_warnings
 from django.utils.deprecation import RemovedInDjango50Warning
 
@@ -778,6 +778,45 @@ class CustomPrefetchTests(TestCase):
                 [["all_houses", "occupants_lst", "houses"]],
             )
         self.assertEqual(lst1, lst2)
+
+    @skipUnlessDBFeature("supports_over_clause")
+    def test_prefetch_related_with_sliced_queryset(self):
+        persons = Person.objects.prefetch_related(
+            Prefetch(
+                "houses",
+                queryset=House.objects.order_by("pk")[1:2],
+                to_attr="limited_houses",
+            )
+        )
+
+        persons = list(persons)
+
+        self.assertEqual(
+            [person.limited_houses for person in persons],
+            [[self.house2], [self.house4]],
+        )
+
+    @skipUnlessDBFeature("supports_over_clause")
+    def test_reverse_fk_prefetch_related_with_sliced_queryset(self):
+        houses = House.objects.order_by("pk").prefetch_related(
+            Prefetch(
+                "rooms",
+                queryset=Room.objects.order_by("pk")[1:2],
+                to_attr="limited_rooms",
+            )
+        )
+
+        houses = list(houses)
+
+        self.assertEqual(
+            [house.limited_rooms for house in houses],
+            [
+                [self.room1_2],
+                [self.room2_2],
+                [self.room3_2],
+                [self.room4_2],
+            ],
+        )
 
     def test_custom_qs(self):
         # Test basic.
