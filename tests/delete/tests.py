@@ -11,7 +11,6 @@ from .models import (
     ReferencedModel, ReferencingModel,
 )
 
-
 class OnDeleteTests(TestCase):
     def setUp(self):
         self.DEFAULT = get_default_r()
