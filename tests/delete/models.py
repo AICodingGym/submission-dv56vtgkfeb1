@@ -126,3 +126,17 @@ class Base(models.Model):
 
 class RelToBase(models.Model):
     base = models.ForeignKey(Base, models.DO_NOTHING)
+
+
+class ReferencedModel(models.Model):
+    parent = models.ForeignKey(R, models.CASCADE)
+    code = models.CharField(max_length=20, unique=True)
+
+
+class ReferencingModel(models.Model):
+    referenced = models.ForeignKey(
+        ReferencedModel,
+        models.CASCADE,
+        to_field='code',
+    )
+

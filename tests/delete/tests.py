@@ -8,6 +8,7 @@ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 from .models import (
     MR, A, Avatar, Base, Child, HiddenUser, HiddenUserProfile, M, M2MFrom,
     M2MTo, MRNull, Parent, R, RChild, S, T, User, create_a, get_default_r,
+    ReferencedModel, ReferencingModel,
 )
 
 
@@ -182,6 +183,46 @@ class DeletionTests(TestCase):
         # + 1 (delete `s`)
         self.assertNumQueries(5, s.delete)
         self.assertFalse(S.objects.exists())
+
+    def test_related_objects_defer_unneeded_fields(self):
+        r = R.objects.create()
+        related = A._meta.get_field('auto').remote_field
+        collector = Collector(using='default')
+
+        qs = collector.related_objects(related, [r])
+        loaded_fields = qs.query.deferred_loading[0]
+
+        self.assertFalse(qs.query.deferred_loading[1])
+        self.assertIn('id', loaded_fields)
+        self.assertNotIn('name', loaded_fields)
+
+    def test_related_objects_preserve_referenced_unique_field(self):
+        r = R.objects.create()
+        related = ReferencedModel._meta.get_field('parent').remote_field
+        collector = Collector(using='default')
+
+        qs = collector.related_objects(related, [r])
+        loaded_fields = qs.query.deferred_loading[0]
+
+        self.assertIn('id', loaded_fields)
+        self.assertIn('code', loaded_fields)
+
+    def test_related_objects_with_m2m_changed_listener(self):
+        r = R.objects.create()
+        related = A._meta.get_field('auto').remote_field
+        collector = Collector(using='default')
+
+        def receiver(sender, **kwargs):
+            pass
+
+        models.signals.m2m_changed.connect(receiver, sender=A)
+        try:
+            qs = collector.related_objects(related, [r])
+        finally:
+            models.signals.m2m_changed.disconnect(receiver, sender=A)
+
+        self.assertTrue(qs.query.deferred_loading[1])
+        self.assertFalse(qs.query.deferred_loading[0])
 
     def test_instance_update(self):
         deleted = []

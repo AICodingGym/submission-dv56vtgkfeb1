@@ -232,9 +232,29 @@ class Collector:
         """
         Get a QuerySet of objects related to `objs` via the relation `related`.
         """
-        return related.related_model._base_manager.using(self.using).filter(
+        model = related.related_model
+        qs = model._base_manager.using(self.using).filter(
             **{"%s__in" % related.field.name: objs}
         )
+        if not qs.query.select_related and not (
+            signals.pre_delete.has_listeners(model) or
+            signals.post_delete.has_listeners(model) or
+            signals.m2m_changed.has_listeners(model)
+        ):
+            fields = {model._meta.pk.name}
+            fields.update(
+                ptr.name
+                for ptr in model._meta.concrete_model._meta.parents.values()
+                if ptr
+            )
+            fields.update(
+                field.name
+                for relation in get_candidate_relations_to_delete(model._meta)
+                if relation.field.remote_field.on_delete is not DO_NOTHING
+                for field in relation.field.foreign_related_fields
+            )
+            qs = qs.only(*fields)
+        return qs
 
     def instances_with_model(self):
         for model, instances in self.data.items():
